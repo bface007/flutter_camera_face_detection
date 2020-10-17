@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:rxdart/rxdart.dart';
 
 class CameraFaceDetection {
   static const MethodChannel _channel =
@@ -23,7 +24,10 @@ class CameraFaceDetection {
     if (result) {
       _streamController = _streamController ??= StreamController();
 
-      _eventChannel.receiveBroadcastStream().listen((event) {
+      _eventChannel
+          .receiveBroadcastStream()
+          .throttleTime(const Duration(seconds: 1))
+          .listen((event) {
         if (event is List) {
           _streamController
               .add(event.map((e) => DetectedFace.fromMap(e)).toList());
@@ -38,7 +42,7 @@ class CameraFaceDetection {
   Future<void> stopDetection() async {
     await _channel.invokeMethod("stopDetection");
   }
-  
+
   Future<bool> hasPermissions() {
     return _channel.invokeMethod("hasPermissions");
   }

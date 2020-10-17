@@ -36,22 +36,31 @@ android {
     defaultConfig {
         minSdkVersion 21
     }
+    compileOptions {
+        sourceCompatibility = '1.8'
+        targetCompatibility = '1.8'
+    }
     lintOptions {
         disable 'InvalidPackage'
+    }
+    dependencies {
+        implementation 'androidx.annotation:annotation:1.0.0'
+        implementation 'androidx.core:core:1.0.0'
+        api "io.flutter:flutter_embedding_release:1.0.0-d1bc06f032f9d6c148ea6b96b48261d6f545004f"
+        def camerax_version = "1.0.0-beta11"
+
+        implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+        // CameraX core library using camera2 implementation
+        implementation "androidx.camera:camera-camera2:$camerax_version"
+// CameraX Lifecycle Library
+        implementation "androidx.camera:camera-lifecycle:$camerax_version"
+// CameraX View class
+        implementation "androidx.camera:camera-view:1.0.0-alpha18"
+        implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+        implementation 'com.google.mlkit:face-detection:16.0.2'
     }
 }
 
 dependencies {
-    api "io.flutter:flutter_embedding_debug:1.0.0-d1bc06f032f9d6c148ea6b96b48261d6f545004f"
-    def camerax_version = "1.0.0-beta11"
 
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-    // CameraX core library using camera2 implementation
-    implementation "androidx.camera:camera-camera2:$camerax_version"
-// CameraX Lifecycle Library
-    implementation "androidx.camera:camera-lifecycle:$camerax_version"
-// CameraX View class
-    implementation "androidx.camera:camera-view:1.0.0-alpha18"
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
-    implementation 'com.google.mlkit:face-detection:16.0.2'
 }

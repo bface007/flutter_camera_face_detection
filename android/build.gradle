@@ -46,7 +46,7 @@ android {
     dependencies {
         implementation 'androidx.annotation:annotation:1.0.0'
         implementation 'androidx.core:core:1.0.0'
-        api "io.flutter:flutter_embedding_release:1.0.0-d1bc06f032f9d6c148ea6b96b48261d6f545004f"
+//        api "io.flutter:flutter_embedding_release:1.0.0-d1bc06f032f9d6c148ea6b96b48261d6f545004f"
         def camerax_version = "1.0.0-beta11"
 
         implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"

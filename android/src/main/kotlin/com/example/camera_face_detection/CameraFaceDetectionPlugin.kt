@@ -7,13 +7,14 @@ import android.util.Log
 import android.util.Size
 import android.widget.Toast
 import androidx.annotation.NonNull
+import androidx.camera.core.AspectRatio
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.android.gms.tasks.Task
+import com.example.camera_face_detection.tflite.Classifier
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.Face
 import com.google.mlkit.vision.face.FaceDetection
@@ -29,14 +30,11 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.lang.Exception
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-typealias FaceDetectionListener = (faces: List<Face>) -> Unit
-typealias EventSinkGetter = (eventSink: EventChannel.EventSink?) -> Unit
+typealias FaceDetectionListener = (faces: List<MyDetectedFace>) -> Unit
 
 /** CameraFaceDetectionPlugin */
 class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, PluginRegistry.RequestPermissionsResultListener {
@@ -46,6 +44,9 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
     /// when the Flutter Engine is detached from the Activity
     private lateinit var channel: MethodChannel
     private lateinit var eventChannel: EventChannel
+
+    private lateinit var genderClassifier: Classifier
+    private lateinit var ageClassifier: Classifier
 
     private var cameraProvider: ProcessCameraProvider? = null
     private var isReady = false
@@ -106,6 +107,7 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
         channel.setMethodCallHandler(null)
     }
 
+    @SuppressLint("UnsafeExperimentalUsageError")
     private fun startDetection() {
         Toast.makeText(activity, "Starting detection...", Toast.LENGTH_SHORT).show()
         val cameraProviderFuture = ProcessCameraProvider.getInstance(activity!!.context)
@@ -116,7 +118,8 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
             val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
 
             val imageAnalyzer = ImageAnalysis.Builder()
-                    .setTargetResolution(Size(320, 240))
+                    .setTargetAspectRatio(AspectRatio.RATIO_4_3)
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                     .also {
                         it.setAnalyzer(
@@ -125,15 +128,7 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
                                     run {
                                         if (faces.isNotEmpty()) {
                                             eventSink?.success(faces.map { it ->
-                                                hashMapOf(
-                                                        "smilingProbability" to it.smilingProbability,
-                                                        "leftEyeOpenProbability" to it.leftEyeOpenProbability,
-                                                        "rightEyeOpenProbability" to it.rightEyeOpenProbability,
-                                                        "headEulerAngleX" to it.headEulerAngleX,
-                                                        "headEulerAngleY" to it.headEulerAngleY,
-                                                        "headEulerAngleZ" to it.headEulerAngleZ,
-                                                        "trackingId" to it.trackingId
-                                                )
+                                                it.toMap()
                                             })
                                         }
                                     }
@@ -166,56 +161,60 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-
-    companion object {
-        private const val TAG = "CameraFaceDetectionPlug"
-        private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
-        private const val RATIO_4_3_VALUE = 4.0 / 3.0
-        private const val RATIO_16_9_VALUE = 16.0 / 9.0
-        private const val REQUEST_CODE_PERMISSIONS = 10
-        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
-    }
-
-    private class FaceDetectionAnalyzer(private var listener: FaceDetectionListener) :
+    private inner class FaceDetectionAnalyzer(private var listener: FaceDetectionListener) :
             ImageAnalysis.Analyzer {
         @SuppressLint("UnsafeExperimentalUsageError")
         override fun analyze(imageProxy: ImageProxy) {
+
             val mediaImage = imageProxy.image ?: return
+            val bitmap = imageProxy.toBitmap();
 
             val faceDetectionOptions = FaceDetectorOptions.Builder()
-                    .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                    .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
                     .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+                    .enableTracking()
                     .build()
 
             val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
 
             val detector = FaceDetection.getClient(faceDetectionOptions)
 
-
             detector.process(image)
-                    .addOnSuccessListener { faces -> listener(faces) }
+                    .addOnSuccessListener { faces ->
+                        run {
+                            listener(faces.map {
+                                val croppedFaceBitmap = bitmap.crop(it.boundingBox)
+                                val genderResult = genderClassifier.recognizeImage(croppedFaceBitmap)
+                                val ageResult = ageClassifier.recognizeImage(croppedFaceBitmap)
+
+                                MyDetectedFace(
+                                        smilingProbability = it.smilingProbability,
+                                        leftEyeOpenProbability = it.leftEyeOpenProbability,
+                                        rightEyeOpenProbability = it.rightEyeOpenProbability,
+                                        headEulerAngleX = it.headEulerAngleX,
+                                        headEulerAngleY = it.headEulerAngleY,
+                                        headEulerAngleZ = it.headEulerAngleZ,
+                                        trackingId = it.trackingId,
+                                        gender = if(genderResult.isNotEmpty()) genderResult.first().title else "Unknown",
+                                        ageRange = if(ageResult.isNotEmpty()) ageResult.first().title else "Unknown"
+                                )
+                            })
+
+                        }
+                    }
                     .addOnFailureListener { e -> Log.e(TAG, "Error : ${e.message}", e) }
                     .addOnCompleteListener { imageProxy.close() }
         }
     }
 
 
-    private class OnEventSinkHandler(private var getter: EventSinkGetter) : EventChannel.StreamHandler {
-        override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-            getter(events)
-        }
-
-        override fun onCancel(arguments: Any?) {
-
-        }
-
-    }
-
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity as FlutterActivity
 
         binding.addRequestPermissionsResultListener(this)
         cameraExecutor = Executors.newSingleThreadExecutor()
+        genderClassifier = Classifier(activity!!.assets, GENDER_MODEL_PATH, GENDER_LABELS_PATH, IMAGE_SOURCE_INPUT_SIZE)
+        ageClassifier = Classifier(activity!!.assets, AGE_MODEL_PATH, AGE_LABELS_PATH, IMAGE_SOURCE_INPUT_SIZE)
         isReady = true
     }
 
@@ -249,5 +248,14 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
         return false
     }
 
-
+    companion object {
+        private const val TAG = "CameraFaceDetectionPlug"
+        private const val REQUEST_CODE_PERMISSIONS = 10
+        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
+        private const val GENDER_MODEL_PATH = "gender_MobileNetV2.tflite"
+        private const val AGE_MODEL_PATH = "age224.tflite"
+        private const val GENDER_LABELS_PATH = "gender_label.txt"
+        private const val AGE_LABELS_PATH = "age_label.txt"
+        private const val IMAGE_SOURCE_INPUT_SIZE = 224
+    }
 }

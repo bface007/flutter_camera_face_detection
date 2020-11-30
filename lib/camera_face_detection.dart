@@ -65,6 +65,8 @@ class DetectedFace {
   final double headEulerAngleY;
   final double headEulerAngleZ;
   final int trackingId;
+  final String gender;
+  final String ageRange;
 
   DetectedFace({
     @required this.smilingProbability,
@@ -74,6 +76,8 @@ class DetectedFace {
     @required this.headEulerAngleY,
     @required this.headEulerAngleZ,
     @required this.trackingId,
+    @required this.gender,
+    @required this.ageRange,
   });
 
   factory DetectedFace.fromMap(Map data) => DetectedFace(
@@ -84,5 +88,7 @@ class DetectedFace {
         headEulerAngleY: data['headEulerAngleY'],
         headEulerAngleZ: data['headEulerAngleZ'],
         trackingId: data['trackingId'],
+        gender: data['gender'],
+        ageRange: data['ageRange']
       );
 }

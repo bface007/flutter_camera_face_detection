@@ -28,6 +28,8 @@ class _MyAppState extends State<MyApp> {
   int _detectedFacesCount = 0;
   double _smilingProb = 0;
   CameraFaceDetection _cameraFaceDetection;
+  String _gender;
+  String _ageRange;
 
   @override
   void initState() {
@@ -56,6 +58,8 @@ class _MyAppState extends State<MyApp> {
           if (faces.isNotEmpty) {
             setState(() {
               _smilingProb = faces.first.smilingProbability;
+              _gender = faces.first.gender;
+              _ageRange = faces.first.ageRange;
             });
           }
 
@@ -99,6 +103,8 @@ class _MyAppState extends State<MyApp> {
               Text('Running on: $_platformVersion\n'),
               Text("Detected faces: $_detectedFacesCount"),
               Text("smiling prob: $_smilingProb"),
+              if(_gender != null) Text("Gender: $_gender"),
+              if(_ageRange != null) Text("Gender: $_ageRange"),
             ],
           ),
         ),

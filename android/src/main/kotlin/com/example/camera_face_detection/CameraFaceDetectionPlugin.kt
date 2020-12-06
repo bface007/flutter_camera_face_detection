@@ -33,6 +33,7 @@ import io.flutter.plugin.common.PluginRegistry
 import java.lang.Exception
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.properties.Delegates
 
 typealias FaceDetectionListener = (faces: List<MyDetectedFace>) -> Unit
 
@@ -55,6 +56,8 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
     private lateinit var cameraExecutor: ExecutorService
     private var activity: FlutterActivity? = null
     private var eventSink: EventChannel.EventSink? = null
+    private var detectAgeRange: Boolean? = null
+    private var detectGender: Boolean? = null
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, "camera_face_detection")
@@ -82,8 +85,14 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
                     Toast.makeText(activity, "cannot start detection", Toast.LENGTH_SHORT).show()
                     return result.success(false)
                 }
+                detectGender = call.argument<Boolean>("detectGender")
+                detectAgeRange = call.argument<Boolean>("detectAgeRange")
                 if (allPermissionsGranted()) {
-                    startDetection()
+                    startDetection(
+                            detectGender = detectGender
+                                    ?: true,
+                            detectAgeRange = detectAgeRange ?: true
+                    )
                     result.success(true)
                 } else {
                     ActivityCompat.requestPermissions(activity!!, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
@@ -108,7 +117,7 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
     }
 
     @SuppressLint("UnsafeExperimentalUsageError")
-    private fun startDetection() {
+    private fun startDetection(detectGender: Boolean = true, detectAgeRange: Boolean = true) {
         Toast.makeText(activity, "Starting detection...", Toast.LENGTH_SHORT).show()
         val cameraProviderFuture = ProcessCameraProvider.getInstance(activity!!.context)
 
@@ -124,7 +133,7 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
                     .also {
                         it.setAnalyzer(
                                 cameraExecutor,
-                                FaceDetectionAnalyzer { faces ->
+                                FaceDetectionAnalyzer(detectAgeRange = detectAgeRange, detectGender = detectGender, listener = { faces ->
                                     run {
                                         if (faces.isNotEmpty()) {
                                             eventSink?.success(faces.map { it ->
@@ -132,7 +141,7 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
                                             })
                                         }
                                     }
-                                }
+                                })
                         )
                     }
 
@@ -161,7 +170,7 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    private inner class FaceDetectionAnalyzer(private var listener: FaceDetectionListener) :
+    private inner class FaceDetectionAnalyzer(private var listener: FaceDetectionListener, private var detectGender: Boolean, private var detectAgeRange: Boolean) :
             ImageAnalysis.Analyzer {
         @SuppressLint("UnsafeExperimentalUsageError")
         override fun analyze(imageProxy: ImageProxy) {
@@ -184,8 +193,8 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
                         run {
                             listener(faces.map {
                                 val croppedFaceBitmap = bitmap.crop(it.boundingBox)
-                                val genderResult = genderClassifier.recognizeImage(croppedFaceBitmap)
-                                val ageResult = ageClassifier.recognizeImage(croppedFaceBitmap)
+                                val genderResult = if (detectGender) genderClassifier.recognizeImage(croppedFaceBitmap) else emptyList()
+                                val ageResult = if (detectAgeRange) ageClassifier.recognizeImage(croppedFaceBitmap) else emptyList()
 
                                 MyDetectedFace(
                                         smilingProbability = it.smilingProbability,
@@ -195,8 +204,8 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
                                         headEulerAngleY = it.headEulerAngleY,
                                         headEulerAngleZ = it.headEulerAngleZ,
                                         trackingId = it.trackingId,
-                                        gender = if(genderResult.isNotEmpty()) genderResult.first().title else "Unknown",
-                                        ageRange = if(ageResult.isNotEmpty()) ageResult.first().title else "Unknown"
+                                        gender = if (genderResult.isNotEmpty()) genderResult.first().title else "Unknown",
+                                        ageRange = if (ageResult.isNotEmpty()) ageResult.first().title else "Unknown"
                                 )
                             })
 
@@ -238,7 +247,9 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>?, grantResults: IntArray?): Boolean {
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             if (allPermissionsGranted()) {
-                startDetection()
+                startDetection(detectGender = detectGender
+                        ?: true,
+                        detectAgeRange = detectAgeRange ?: true)
                 return true
             } else {
                 Toast.makeText(activity, "Permissions not granted by the user", Toast.LENGTH_SHORT)

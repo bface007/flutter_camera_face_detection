@@ -18,8 +18,11 @@ class CameraFaceDetection {
     return version;
   }
 
-  Future<Stream<List<DetectedFace>>> startDetection() async {
-    final result = await _channel.invokeMethod("startDetection");
+  Future<Stream<List<DetectedFace>>> startDetection({bool detectGender = true, bool detectAgeRange = true}) async {
+    final result = await _channel.invokeMethod("startDetection", {
+      "detectGender": detectGender,
+      "detectAgeRange": detectAgeRange,
+    });
 
     if (result) {
       _streamController = _streamController ??= StreamController();

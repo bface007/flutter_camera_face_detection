@@ -35,8 +35,8 @@ data class MyDetectedFace(
                 "headEulerAngleY" to headEulerAngleY,
                 "headEulerAngleZ" to headEulerAngleZ,
                 "trackingId" to trackingId,
-                "gender" to gender,
-                "ageRange" to ageRange
+                "gender" to (gender ?: "unknown"),
+                "ageRange" to (ageRange ?: "unknown")
         )
     }
 }

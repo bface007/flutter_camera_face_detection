@@ -61,6 +61,7 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
     private var eventSink: EventChannel.EventSink? = null
     private var detectAgeRange: Boolean? = null
     private var detectGender: Boolean? = null
+    private var isProcessing = false
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, "camera_face_detection")
@@ -175,6 +176,10 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
             ImageAnalysis.Analyzer {
         @SuppressLint("UnsafeExperimentalUsageError")
         override fun analyze(imageProxy: ImageProxy) {
+            if (isProcessing) {
+                return
+            }
+            isProcessing = true
             val mediaImage = imageProxy.image ?: return
             val bitmap = imageProxy.toBitmap();
 
@@ -187,6 +192,7 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
             val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
 
             val detector = FaceDetection.getClient(faceDetectionOptions)
+
 
             detector.process(image)
                     .addOnSuccessListener { faces ->
@@ -211,13 +217,33 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
 
                             Log.d(TAG, "detected faces " + detectedFaces.size.toString())
 
-                            genderClassifier.recognizeImagesAsync(detectedFaces = detectedFaces, isGender = true, detect = detectGender).addOnSuccessListener {
-                                ageClassifier.recognizeImagesAsync(detectedFaces = it, isGender = false, detect = detectAgeRange).addOnSuccessListener { detected -> listener(detected) }
-                            }
+                            genderClassifier
+                                    .recognizeImagesAsync(detectedFaces = detectedFaces, isGender = true, detect = detectGender)
+                                    .addOnSuccessListener {
+                                        ageClassifier
+                                                .recognizeImagesAsync(detectedFaces = it, isGender = false, detect = detectAgeRange)
+                                                .addOnSuccessListener { detected ->
+                                                    isProcessing = false
+                                                    listener(detected)
+                                                }.addOnFailureListener { err ->
+                                                    Log.e(TAG, "Error : ${err.message}", err)
+                                                    isProcessing = false
+                                                    listener(detectedFaces)
+                                                }
+                                    }.addOnFailureListener {
+                                        Log.e(TAG, "Error : ${it.message}", it)
+                                        isProcessing = false
+                                        listener(detectedFaces)
+                                    }
                         }
                     }
-                    .addOnFailureListener { e -> Log.e(TAG, "Error : ${e.message}", e) }
-                    .addOnCompleteListener { imageProxy.close() }
+                    .addOnFailureListener { e ->
+                        isProcessing = false
+                        Log.e(TAG, "Error : ${e.message}", e)
+                    }
+                    .addOnCompleteListener {
+                        imageProxy.close()
+                    }
         }
     }
 

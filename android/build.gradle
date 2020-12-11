@@ -50,7 +50,7 @@ android {
     dependencies {
         implementation 'androidx.annotation:annotation:1.0.0'
         implementation 'androidx.core:core:1.0.0'
-//        api "io.flutter:flutter_embedding_debug:1.0.0-d1bc06f032f9d6c148ea6b96b48261d6f545004f"
+        api "io.flutter:flutter_embedding_debug:1.0.0-d1bc06f032f9d6c148ea6b96b48261d6f545004f"
 
         implementation 'org.tensorflow:tensorflow-lite:0.0.0-nightly'
         implementation 'org.tensorflow:tensorflow-lite-gpu:0.0.0-nightly'

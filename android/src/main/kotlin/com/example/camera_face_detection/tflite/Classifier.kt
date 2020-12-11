@@ -3,6 +3,9 @@ package com.example.camera_face_detection.tflite
 import android.content.res.AssetManager
 import android.graphics.Bitmap
 import android.util.Log
+import com.example.camera_face_detection.MyDetectedFace
+import com.google.android.gms.tasks.Task
+import com.google.android.gms.tasks.Tasks.call
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
 import java.nio.ByteBuffer
@@ -10,6 +13,8 @@ import java.nio.ByteOrder
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 import java.util.*
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
 import kotlin.math.min
 
 
@@ -21,6 +26,8 @@ class Classifier(assetManager: AssetManager, modelPath: String, labelPath: Strin
     private val imageStd = 255.0f
     private val maxResult = 3
     private val threshHold = 0.4f
+
+    private val executorService = Executors.newCachedThreadPool()
 
     data class Recognition(
         var id: String = "",
@@ -66,6 +73,21 @@ class Classifier(assetManager: AssetManager, modelPath: String, labelPath: Strin
         return getSortedResult(result)
     }
 
+    fun recognizeImageAsync(bitmap: Bitmap): Task<List<Recognition>> {
+        return call(executorService, Callable<List<Recognition>> { recognizeImage(bitmap) })
+    }
+
+    fun recognizeImagesAsync(detectedFaces: List<MyDetectedFace>, isGender: Boolean, detect: Boolean = true): Task<List<MyDetectedFace>> {
+        return call(executorService, Callable<List<MyDetectedFace>> {
+            detectedFaces.map {
+                val results = if(detect) recognizeImage(it.croppedBitmap) else emptyList()
+
+                if(results.isNotEmpty()) {
+                    if(isGender) it.copy(gender = results.first().title) else it.copy(ageRange = results.first().title)
+                } else it
+            }
+        })
+    }
 
     private fun convertBitmapToByteBuffer(bitmap: Bitmap): ByteBuffer {
         val byteBuffer = ByteBuffer.allocateDirect(4 * inputSize * inputSize * pixelSize)

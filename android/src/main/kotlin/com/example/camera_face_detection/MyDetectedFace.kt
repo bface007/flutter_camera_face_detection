@@ -1,5 +1,7 @@
 package com.example.camera_face_detection
 
+import android.graphics.Bitmap
+
 data class MyDetectedFace(
         var smilingProbability: Float?,
         var leftEyeOpenProbability: Float?,
@@ -9,7 +11,8 @@ data class MyDetectedFace(
         var headEulerAngleZ: Float?,
         var trackingId: Int?,
         var gender: String?,
-        var ageRange: String?
+        var ageRange: String?,
+        var croppedBitmap: Bitmap
 ) {
     override fun toString(): String {
         return "smilingProbability: $smilingProbability \n" +

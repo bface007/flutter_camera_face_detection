@@ -30,16 +30,19 @@ class _MyAppState extends State<MyApp> {
   CameraFaceDetection _cameraFaceDetection;
   String _gender;
   String _ageRange;
+  StreamSubscription _subscription;
 
   @override
   void initState() {
     super.initState();
     _cameraFaceDetection = CameraFaceDetection();
-    initPlatformState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      initPlatformState();
+    });
   }
 
   // Platform messages are asynchronous, so we initialize in an async method.
-  Future<void> initPlatformState() async {
+  void initPlatformState() async {
     String platformVersion;
     // Platform messages may fail, so we use a try/catch PlatformException.
     try {
@@ -49,10 +52,13 @@ class _MyAppState extends State<MyApp> {
     }
 
     try {
-      final _stream = await _cameraFaceDetection.startDetection();
+      final _stream = await _cameraFaceDetection.startDetection(
+        // detectGender: false,
+        detectAgeRange: false,
+      );
 
       if (_stream != null) {
-        _stream.listen((faces) {
+        _subscription = _stream.listen((faces) {
           print("Faces ${faces.length}");
 
           if (faces.isNotEmpty) {
@@ -74,11 +80,6 @@ class _MyAppState extends State<MyApp> {
       print(ex);
     }
 
-    // If the widget was removed from the tree while the asynchronous platform
-    // message was in flight, we want to discard the reply rather than calling
-    // setState to update our non-existent appearance.
-    if (!mounted) return;
-
     setState(() {
       _platformVersion = platformVersion;
     });
@@ -87,6 +88,7 @@ class _MyAppState extends State<MyApp> {
   @override
   void dispose() {
     _cameraFaceDetection.dispose();
+    _subscription?.cancel();
     super.dispose();
   }
 
@@ -103,8 +105,8 @@ class _MyAppState extends State<MyApp> {
               Text('Running on: $_platformVersion\n'),
               Text("Detected faces: $_detectedFacesCount"),
               Text("smiling prob: $_smilingProb"),
-              if(_gender != null) Text("Gender: $_gender"),
-              if(_ageRange != null) Text("Gender: $_ageRange"),
+              if (_gender != null) Text("Gender: $_gender"),
+              if (_ageRange != null) Text("Gender: $_ageRange"),
             ],
           ),
         ),

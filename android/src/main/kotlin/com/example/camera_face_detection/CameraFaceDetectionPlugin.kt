@@ -131,8 +131,8 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
             val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
 
             val imageAnalyzer = ImageAnalysis.Builder()
-                    .setTargetResolution(Size(480, 360))
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_BLOCK_PRODUCER)
+                    .setTargetResolution(Size(400, 30))
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                     .also {
                         it.setAnalyzer(
@@ -177,11 +177,12 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
         @SuppressLint("UnsafeExperimentalUsageError")
         override fun analyze(imageProxy: ImageProxy) {
 
-            val mediaImage = imageProxy.image ?: return
-            if (isProcessing) {
+            if(null == imageProxy.image || isProcessing) {
                 imageProxy.close()
                 return
             }
+            val mediaImage = imageProxy.image!!
+
             isProcessing = true
             val bitmap = imageProxy.toBitmap();
 

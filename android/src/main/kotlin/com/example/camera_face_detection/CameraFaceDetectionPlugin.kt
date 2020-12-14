@@ -131,7 +131,7 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
             val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
 
             val imageAnalyzer = ImageAnalysis.Builder()
-                    .setTargetResolution(Size(480, 360))
+                    .setTargetAspectRatio(AspectRatio.RATIO_4_3)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                     .also {
@@ -177,15 +177,8 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
         @SuppressLint("UnsafeExperimentalUsageError")
         override fun analyze(imageProxy: ImageProxy) {
 
-            if(isProcessing) {
-                imageProxy.image?.let {
-                    imageProxy.close()
-                }
-                return
-            }
             val mediaImage = imageProxy.image ?: return
 
-            isProcessing = true
             val bitmap = imageProxy.toBitmap();
 
             val faceDetectionOptions = FaceDetectorOptions.Builder()
@@ -203,7 +196,6 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
                         run {
                             val detectedFaces = faces.map {
                                 val croppedFaceBitmap = bitmap.crop(it.boundingBox)
-
 
                                 MyDetectedFace(
                                         smilingProbability = it.smilingProbability,
@@ -227,22 +219,18 @@ class CameraFaceDetectionPlugin : FlutterPlugin, MethodCallHandler, ActivityAwar
                                         ageClassifier
                                                 .recognizeImagesAsync(detectedFaces = it, isGender = false, detect = detectAgeRange)
                                                 .addOnSuccessListener { detected ->
-                                                    isProcessing = false
                                                     listener(detected)
                                                 }.addOnFailureListener { err ->
                                                     Log.e(TAG, "Error : ${err.message}", err)
-                                                    isProcessing = false
                                                     listener(detectedFaces)
                                                 }
                                     }.addOnFailureListener {
                                         Log.e(TAG, "Error : ${it.message}", it)
-                                        isProcessing = false
                                         listener(detectedFaces)
                                     }
                         }
                     }
                     .addOnFailureListener { e ->
-                        isProcessing = false
                         Log.e(TAG, "Error : ${e.message}", e)
                     }
                     .addOnCompleteListener {
